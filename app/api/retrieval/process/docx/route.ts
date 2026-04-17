@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
 import { processDocX } from "@/lib/retrieval/processing"
@@ -11,11 +12,6 @@ import OpenAI from "openai"
 
 export async function POST(req: Request) {
   try {
-    // ✅ Prevent build-time execution crash
-    if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      return new NextResponse("Skipping during build", { status: 200 })
-    }
-
     const json = await req.json()
     const { text, fileId, embeddingsProvider, fileExtension } = json as {
       text: string
@@ -24,13 +20,15 @@ export async function POST(req: Request) {
       fileExtension: string
     }
 
+    // ✅ Supabase Admin Client
     const supabaseAdmin = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
     const profile = await getServerProfile()
 
+    // ✅ Validate API Key
     if (embeddingsProvider === "openai") {
       if (profile.use_azure_openai) {
         checkApiKey(profile.azure_openai_api_key, "Azure OpenAI")
@@ -39,6 +37,7 @@ export async function POST(req: Request) {
       }
     }
 
+    // ✅ Process file chunks
     let chunks: FileItemChunk[] = []
 
     switch (fileExtension) {
@@ -51,9 +50,11 @@ export async function POST(req: Request) {
         })
     }
 
-    let embeddings: any = []
+    let embeddings: any[] = []
 
+    // ✅ Initialize OpenAI
     let openai
+
     if (profile.use_azure_openai) {
       openai = new OpenAI({
         apiKey: profile.azure_openai_api_key || "",
@@ -68,6 +69,7 @@ export async function POST(req: Request) {
       })
     }
 
+    // ✅ Generate embeddings
     if (embeddingsProvider === "openai") {
       const response = await openai.embeddings.create({
         model: "text-embedding-3-small",
@@ -80,7 +82,7 @@ export async function POST(req: Request) {
         try {
           return await generateLocalEmbedding(chunk.content)
         } catch (error) {
-          console.error(`Error generating embedding for chunk: ${chunk}`, error)
+          console.error("Embedding error:", error)
           return null
         }
       })
@@ -88,6 +90,7 @@ export async function POST(req: Request) {
       embeddings = await Promise.all(embeddingPromises)
     }
 
+    // ✅ Prepare DB records
     const file_items = chunks.map((chunk, index) => ({
       file_id: fileId,
       user_id: profile.user_id,
@@ -95,16 +98,18 @@ export async function POST(req: Request) {
       tokens: chunk.tokens,
       openai_embedding:
         embeddingsProvider === "openai"
-          ? ((embeddings[index] || null) as any)
+          ? embeddings[index] || null
           : null,
       local_embedding:
         embeddingsProvider === "local"
-          ? ((embeddings[index] || null) as any)
+          ? embeddings[index] || null
           : null
     }))
 
+    // ✅ Insert into DB
     await supabaseAdmin.from("file_items").upsert(file_items)
 
+    // ✅ Update token count
     const totalTokens = file_items.reduce((acc, item) => acc + item.tokens, 0)
 
     await supabaseAdmin
@@ -112,14 +117,16 @@ export async function POST(req: Request) {
       .update({ tokens: totalTokens })
       .eq("id", fileId)
 
-    return new NextResponse("Embed Successful", {
-      status: 200
-    })
+    return new NextResponse("Embed Successful", { status: 200 })
+
   } catch (error: any) {
-    console.error(error)
-    const errorMessage = error?.message || "An unexpected error occurred"
-    return new Response(JSON.stringify({ message: errorMessage }), {
-      status: 500
-    })
+    console.error("API ERROR:", error)
+
+    return new Response(
+      JSON.stringify({
+        message: error?.message || "Unexpected error"
+      }),
+      { status: 500 }
+    )
   }
 }
