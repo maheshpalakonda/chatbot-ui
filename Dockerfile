@@ -1,23 +1,24 @@
-FROM node:20-slim
+# Use Node.js
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
-# Install required system libraries (fix for onnxruntime error)
-RUN apt-get update && apt-get install -y \
-    libc6 \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy package files
-COPY package*.json ./
-
 # Install dependencies
+COPY package*.json ./
 RUN npm install
 
-# Copy project
+# Copy project files
 COPY . .
 
-# Build app
+# 🔥 IMPORTANT: Build-time variables (for Next.js)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+# Build Next.js app
 RUN npm run build
 
 # Expose port
