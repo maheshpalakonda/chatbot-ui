@@ -1,20 +1,20 @@
-FROM node:20
+FROM node:20-slim
 
 WORKDIR /app
 
-# Build-time variables (VERY IMPORTANT)
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Install required system libraries (fix for onnxruntime error)
+RUN apt-get update && apt-get install -y \
+    libc6 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Make them available to Next.js
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Copy package files
+COPY package*.json ./
 
 # Install dependencies
-COPY package*.json ./
 RUN npm install
 
-# Copy source code
+# Copy project
 COPY . .
 
 # Build app
