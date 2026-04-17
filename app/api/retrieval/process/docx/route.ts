@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
 import { processDocX } from "@/lib/retrieval/processing"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
@@ -8,18 +10,23 @@ import { NextResponse } from "next/server"
 import OpenAI from "openai"
 
 export async function POST(req: Request) {
-  const json = await req.json()
-  const { text, fileId, embeddingsProvider, fileExtension } = json as {
-    text: string
-    fileId: string
-    embeddingsProvider: "openai" | "local"
-    fileExtension: string
-  }
-
   try {
+    // ✅ Prevent build-time execution crash
+    if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return new NextResponse("Skipping during build", { status: 200 })
+    }
+
+    const json = await req.json()
+    const { text, fileId, embeddingsProvider, fileExtension } = json as {
+      text: string
+      fileId: string
+      embeddingsProvider: "openai" | "local"
+      fileExtension: string
+    }
+
     const supabaseAdmin = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ""
     )
 
     const profile = await getServerProfile()
@@ -67,9 +74,7 @@ export async function POST(req: Request) {
         input: chunks.map(chunk => chunk.content)
       })
 
-      embeddings = response.data.map((item: any) => {
-        return item.embedding
-      })
+      embeddings = response.data.map((item: any) => item.embedding)
     } else if (embeddingsProvider === "local") {
       const embeddingPromises = chunks.map(async chunk => {
         try {
@@ -112,10 +117,9 @@ export async function POST(req: Request) {
     })
   } catch (error: any) {
     console.error(error)
-    const errorMessage = error.error?.message || "An unexpected error occurred"
-    const errorCode = error.status || 500
+    const errorMessage = error?.message || "An unexpected error occurred"
     return new Response(JSON.stringify({ message: errorMessage }), {
-      status: errorCode
+      status: 500
     })
   }
 }
