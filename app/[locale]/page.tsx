@@ -11,7 +11,7 @@ export default function HomePage() {
       <img src="/logo.png" alt="logo" className="w-32 mx-auto" />
 
       {/* ✅ Your Text */}
-      <div className="mt-2 text-4xl font-bold">Dilshaj AI Assistant</div>
+      <div className="mt-2 text-4xl font-bold">Dilshaj InfoTech AI Assistant</div>
 
       <Link
         className="mt-4 flex w-[200px] items-center justify-center rounded-md bg-blue-500 p-2 font-semibold"
