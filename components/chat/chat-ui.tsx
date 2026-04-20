@@ -27,8 +27,8 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
   const params = useParams()
 
   const {
-    setChatMessages,
     chatMessages,
+    setChatMessages,
     selectedChat,
     setSelectedChat,
     setChatSettings,
@@ -186,6 +186,10 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
     return <Loading />
   }
 
+  const userMessages = chatMessages.filter(
+    m => m.message.role === "user"
+  )
+
   return (
     <div className="relative flex h-full flex-col items-center">
       <div className="absolute left-4 top-2.5 flex justify-center">
@@ -215,17 +219,19 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
         <div ref={messagesStartRef} />
 
         {/* ✅ CUSTOM CENTER UI */}
-        {chatMessages.filter(m => m.message.role === "user").length === 0 && (
+        {userMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <img src="/logo.png" className="w-40 mb-4" />
-            <h1 className="text-2xl font-bold">Dilshaj AI Assistant</h1>
+            <h1 className="text-2xl font-bold">
+              Dilshaj AI Assistant
+            </h1>
             <p className="text-gray-400 mt-2">
               Start chatting with your AI
             </p>
           </div>
+        ) : (
+          <ChatMessages />
         )}
-
-        <ChatMessages />
 
         <div ref={messagesEndRef} />
       </div>
