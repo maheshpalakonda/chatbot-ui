@@ -28,6 +28,7 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
 
   const {
     setChatMessages,
+    chatMessages, // ✅ important
     selectedChat,
     setSelectedChat,
     setChatSettings,
@@ -212,6 +213,17 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
         onScroll={handleScroll}
       >
         <div ref={messagesStartRef} />
+
+        {/* ✅ CUSTOM CENTER UI */}
+        {chatMessages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full">
+            <img src="/logo.png" className="w-40 mb-4" />
+            <h1 className="text-2xl font-bold">Dilshaj AI Assistant</h1>
+            <p className="text-gray-400 mt-2">
+              Start chatting with your AI
+            </p>
+          </div>
+        )}
 
         <ChatMessages />
 
