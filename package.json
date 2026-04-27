@@ -10,7 +10,7 @@
     "clean": "npm run lint:fix && npm run format:write",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "analyze": "ANALYZE=true npm run build",
