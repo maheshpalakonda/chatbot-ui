@@ -1,34 +1,28 @@
-# ---------- BUILD ----------
-FROM node:18-alpine AS builder
+# Use Node.js
+FROM node:18
 
+# Set working directory
 WORKDIR /app
 
+# Install dependencies
 COPY package*.json ./
 RUN npm install
 
+# Copy all files
 COPY . .
 
+# ONLY public variables (needed at build time)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+# Build Next.js app
 RUN npm run build
 
-
-# ---------- PRODUCTION ----------
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY --from=builder /app/package*.json ./
-RUN npm install --omit=dev
-
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules ./node_modules
-
+# Expose port
 EXPOSE 3000
 
+# Start application
 CMD ["npm", "start"]
