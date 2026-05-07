@@ -9,14 +9,15 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      id-token: write   # REQUIRED for OIDC
+      id-token: write
       contents: read
 
     steps:
+    # ✅ Checkout
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # ✅ Configure AWS using OIDC role
+    # ✅ Configure AWS (OIDC)
     - name: Configure AWS
       uses: aws-actions/configure-aws-credentials@v2
       with:
@@ -31,18 +32,18 @@ jobs:
     - name: Build Docker Image
       run: docker build -t chatbot-ui .
 
-    # ✅ Tag & Push image
-    - name: Push Image to ECR
+    # ✅ Push image to ECR
+    - name: Push Image
       run: |
         docker tag chatbot-ui:latest ${{ secrets.ECR_URI }}:latest
         docker push ${{ secrets.ECR_URI }}:latest
 
-    # ✅ Replace IMAGE_URI in task definition
+    # ✅ Replace image URI in task definition
     - name: Update Task Definition Image
       run: |
         sed -i "s|IMAGE_URI|${{ secrets.ECR_URI }}:latest|g" taskdef.json
 
-    # ✅ Register new Task Definition
+    # ✅ Register new task definition
     - name: Register Task Definition
       run: |
         TASK_DEF_ARN=$(aws ecs register-task-definition \
@@ -52,18 +53,23 @@ jobs:
 
         echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
 
-    # ✅ Update appspec with new Task ARN
-    - name: Update appspec
+    # ✅ Inject new task definition into appspec
+    - name: Update AppSpec
       run: |
         sed -i "s|TASK_DEF_ARN|$TASK_DEF_ARN|g" appspec.yaml
 
-    # 🔥 FIXED DEPLOY STEP (IMPORTANT)
+    # 🔥 FINAL FIX — use JSON file instead of inline string
     - name: Deploy using CodeDeploy
       run: |
+        # Convert YAML → single-line safe string
         CONTENT=$(cat appspec.yaml | sed 's/"/\\"/g' | tr -d '\n')
 
+        # Create revision.json
+        echo "{\"revisionType\":\"AppSpecContent\",\"appSpecContent\":{\"content\":\"$CONTENT\"}}" > revision.json
+
+        # Deploy
         aws deploy create-deployment \
           --application-name chatbot-app \
           --deployment-group-name chatbot-group \
           --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
-          --revision revisionType=AppSpecContent,appSpecContent="{\"content\":\"$CONTENT\"}"
+          --revision file://revision.json
