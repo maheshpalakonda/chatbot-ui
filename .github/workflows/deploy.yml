@@ -3,6 +3,7 @@ name: Deploy ECS Blue-Green
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -18,14 +19,14 @@ jobs:
       uses: actions/checkout@v3
 
     # ✅ Configure AWS (OIDC)
-    - name: Configure AWS
+    - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         role-to-assume: ${{ secrets.IAM_ROLE }}
         aws-region: ap-south-1
 
     # ✅ Login to ECR
-    - name: Login to ECR
+    - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
     # ✅ Build Docker image
@@ -33,18 +34,19 @@ jobs:
       run: docker build -t chatbot-ui .
 
     # ✅ Push image to ECR
-    - name: Push Image
+    - name: Push Docker Image to ECR
       run: |
         docker tag chatbot-ui:latest ${{ secrets.ECR_URI }}:latest
         docker push ${{ secrets.ECR_URI }}:latest
 
-    # ✅ Update image in task definition
+    # ✅ Replace image URI in task definition
     - name: Update Task Definition Image
       run: |
         sed -i "s|IMAGE_URI|${{ secrets.ECR_URI }}:latest|g" taskdef.json
 
     # ✅ Register new task definition
     - name: Register Task Definition
+      id: register-task
       run: |
         TASK_DEF_ARN=$(aws ecs register-task-definition \
           --cli-input-json file://taskdef.json \
@@ -52,12 +54,11 @@ jobs:
           --output text)
 
         echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+        echo "Registered Task Definition: $TASK_DEF_ARN"
 
-    # 🚀 SAFE CodeDeploy step (NO QUOTE ISSUES)
-    - name: Deploy using CodeDeploy
+    # 🚀 Create AppSpec JSON (safe way)
+    - name: Create AppSpec File
       run: |
-        echo "Creating AppSpec JSON..."
-
         cat <<EOF > appspec.json
 {
   "version": "1.0",
@@ -78,8 +79,9 @@ jobs:
 }
 EOF
 
-        echo "Creating revision.json..."
-
+    # 🚀 Create revision JSON
+    - name: Create Revision File
+      run: |
         cat <<EOF > revision.json
 {
   "revisionType": "AppSpecContent",
@@ -89,8 +91,9 @@ EOF
 }
 EOF
 
-        echo "Deploying to CodeDeploy..."
-
+    # 🚀 Deploy using CodeDeploy
+    - name: Deploy using CodeDeploy
+      run: |
         aws deploy create-deployment \
           --application-name chatbot-app \
           --deployment-group-name chatbot-group \
