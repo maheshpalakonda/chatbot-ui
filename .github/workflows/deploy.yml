@@ -38,7 +38,7 @@ jobs:
         docker tag chatbot-ui:latest ${{ secrets.ECR_URI }}:latest
         docker push ${{ secrets.ECR_URI }}:latest
 
-    # ✅ Replace image URI in task definition
+    # ✅ Update image in task definition
     - name: Update Task Definition Image
       run: |
         sed -i "s|IMAGE_URI|${{ secrets.ECR_URI }}:latest|g" taskdef.json
@@ -53,11 +53,46 @@ jobs:
 
         echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
 
-    # 🚀 Deploy using CodeDeploy (FIXED)
+    # 🚀 SAFE CodeDeploy step (NO QUOTE ISSUES)
     - name: Deploy using CodeDeploy
       run: |
+        echo "Creating AppSpec JSON..."
+
+        cat <<EOF > appspec.json
+{
+  "version": "1.0",
+  "Resources": [
+    {
+      "TargetService": {
+        "Type": "AWS::ECS::Service",
+        "Properties": {
+          "TaskDefinition": "$TASK_DEF_ARN",
+          "LoadBalancerInfo": {
+            "ContainerName": "chatbot-container",
+            "ContainerPort": 3000
+          }
+        }
+      }
+    }
+  ]
+}
+EOF
+
+        echo "Creating revision.json..."
+
+        cat <<EOF > revision.json
+{
+  "revisionType": "AppSpecContent",
+  "appSpecContent": {
+    "content": "$(cat appspec.json | tr -d '\n' | sed 's/"/\\"/g')"
+  }
+}
+EOF
+
+        echo "Deploying to CodeDeploy..."
+
         aws deploy create-deployment \
           --application-name chatbot-app \
           --deployment-group-name chatbot-group \
           --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
-          --revision revisionType=AppSpecContent,appSpecContent="{\"version\":\"1.0\",\"Resources\":[{\"TargetService\":{\"Type\":\"AWS::ECS::Service\",\"Properties\":{\"TaskDefinition\":\"$TASK_DEF_ARN\",\"LoadBalancerInfo\":{\"ContainerName\":\"chatbot-container\",\"ContainerPort\":3000}}}}]}"
+          --revision file://revision.json
