@@ -1,0 +1,47 @@
+{
+  "family": "chatbot-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::800960611458:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "chatbot-container",
+      "image": "IMAGE_URI",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:800960611458:secret:chatbot-secrets-ardNKM:NEXT_PUBLIC_SUPABASE_URL"
+        },
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:800960611458:secret:chatbot-secrets-ardNKM:NEXT_PUBLIC_SUPABASE_ANON_KEY"
+        },
+        {
+          "name": "SUPABASE_SERVICE_ROLE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:800960611458:secret:chatbot-secrets-ardNKM:SUPABASE_SERVICE_ROLE_KEY"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:800960611458:secret:chatbot-secrets-ardNKM:OPENAI_API_KEY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/chatbot",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
