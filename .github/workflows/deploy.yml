@@ -14,39 +14,38 @@ jobs:
       contents: read
 
     steps:
-    # ✅ Checkout
-    - name: Checkout code
+    # 1️⃣ Checkout code
+    - name: Checkout
       uses: actions/checkout@v3
 
-    # ✅ Configure AWS (OIDC)
+    # 2️⃣ Configure AWS (OIDC)
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         role-to-assume: ${{ secrets.IAM_ROLE }}
         aws-region: ap-south-1
 
-    # ✅ Login to ECR
-    - name: Login to Amazon ECR
+    # 3️⃣ Login to ECR
+    - name: Login to ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    # ✅ Build Docker image
+    # 4️⃣ Build Docker image
     - name: Build Docker Image
       run: docker build -t chatbot-ui .
 
-    # ✅ Push image to ECR
-    - name: Push Docker Image to ECR
+    # 5️⃣ Push image to ECR
+    - name: Push Image
       run: |
         docker tag chatbot-ui:latest ${{ secrets.ECR_URI }}:latest
         docker push ${{ secrets.ECR_URI }}:latest
 
-    # ✅ Replace image URI in task definition
+    # 6️⃣ Update image in task definition
     - name: Update Task Definition Image
       run: |
         sed -i "s|IMAGE_URI|${{ secrets.ECR_URI }}:latest|g" taskdef.json
 
-    # ✅ Register new task definition
+    # 7️⃣ Register new task definition
     - name: Register Task Definition
-      id: register-task
       run: |
         TASK_DEF_ARN=$(aws ecs register-task-definition \
           --cli-input-json file://taskdef.json \
@@ -54,45 +53,22 @@ jobs:
           --output text)
 
         echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
-        echo "Registered Task Definition: $TASK_DEF_ARN"
+        echo "Registered: $TASK_DEF_ARN"
 
-    # 🚀 Create AppSpec JSON (safe way)
-    - name: Create AppSpec File
+    # 8️⃣ Inject Task Definition ARN into appspec.yaml
+    - name: Update AppSpec
       run: |
-        cat <<EOF > appspec.json
-{
-  "version": "1.0",
-  "Resources": [
-    {
-      "TargetService": {
-        "Type": "AWS::ECS::Service",
-        "Properties": {
-          "TaskDefinition": "$TASK_DEF_ARN",
-          "LoadBalancerInfo": {
-            "ContainerName": "chatbot-container",
-            "ContainerPort": 3000
-          }
-        }
-      }
-    }
-  ]
-}
-EOF
+        sed -i "s|TASK_DEF_ARN|$TASK_DEF_ARN|g" appspec.yaml
 
-    # 🚀 Create revision JSON
-    - name: Create Revision File
+    # 9️⃣ Create revision.json (safe format)
+    - name: Create revision file
       run: |
-        cat <<EOF > revision.json
-{
-  "revisionType": "AppSpecContent",
-  "appSpecContent": {
-    "content": "$(cat appspec.json | tr -d '\n' | sed 's/"/\\"/g')"
-  }
-}
-EOF
+        CONTENT=$(cat appspec.yaml | sed 's/"/\\"/g' | tr -d '\n')
 
-    # 🚀 Deploy using CodeDeploy
-    - name: Deploy using CodeDeploy
+        echo "{\"revisionType\":\"AppSpecContent\",\"appSpecContent\":{\"content\":\"$CONTENT\"}}" > revision.json
+
+    # 🔟 Deploy using CodeDeploy
+    - name: Deploy to CodeDeploy
       run: |
         aws deploy create-deployment \
           --application-name chatbot-app \
