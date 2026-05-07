@@ -53,23 +53,11 @@ jobs:
 
         echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
 
-    # ✅ Inject new task definition into appspec
-    - name: Update AppSpec
-      run: |
-        sed -i "s|TASK_DEF_ARN|$TASK_DEF_ARN|g" appspec.yaml
-
-    # 🔥 FINAL FIX — use JSON file instead of inline string
+    # 🚀 Deploy using CodeDeploy (FIXED)
     - name: Deploy using CodeDeploy
       run: |
-        # Convert YAML → single-line safe string
-        CONTENT=$(cat appspec.yaml | sed 's/"/\\"/g' | tr -d '\n')
-
-        # Create revision.json
-        echo "{\"revisionType\":\"AppSpecContent\",\"appSpecContent\":{\"content\":\"$CONTENT\"}}" > revision.json
-
-        # Deploy
         aws deploy create-deployment \
           --application-name chatbot-app \
           --deployment-group-name chatbot-group \
           --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
-          --revision file://revision.json
+          --revision revisionType=AppSpecContent,appSpecContent="{\"version\":\"1.0\",\"Resources\":[{\"TargetService\":{\"Type\":\"AWS::ECS::Service\",\"Properties\":{\"TaskDefinition\":\"$TASK_DEF_ARN\",\"LoadBalancerInfo\":{\"ContainerName\":\"chatbot-container\",\"ContainerPort\":3000}}}}]}"
